@@ -1,0 +1,107 @@
+---
+title: "cs_behavioral_tempmem_analyses"
+author: "Lainey Costa'
+output: html_document
+date: "2026-09-16"
+---
+
+```{r libraries}
+#load in packages
+library(rio)
+library(stringr)
+library(dplyr)
+library(tidyr)
+library(lme4)
+library(effsize)
+library(emmeans)
+```
+
+
+```{r data path}
+#find data path 
+file_path <- file.path('../../experiments/click-and-switch/data/scored_behavioral_data')
+
+#excel_to_csv <- mapply(convert, file_path, gsub("xlsx", "csv", file_path))
+csv_path <- list.files(path = file_path, pattern = "\\.csv$", recursive = T, full.names = T)
+
+```
+
+```{r loop}
+#loop to pull columns of interest from each csv 
+tempmem_allsubs <- c()
+
+for(i in 1:length(csv_path)){
+  data <- read.csv(csv_path[i])
+  
+  data <- data %>%
+    select(Subject_ID, Video,Filter_0_instruction_1_task, App_1_BothLecture_2_BothInsta_3_diff,
+           SameFrame_0_no_1_yes, SwitchEvent_0_no_1_yes, Exclude_0_no_1_yes, 
+           left_event_frame, right_event_frame, 
+           correct_answer, TemMem_resp.keys, TemMem_resp.corr,
+           TemMem_resp.rt, TimePer_resp.keys, TimePer_resp.rt
+           )
+  
+  tempmem_allsubs <- rbind(tempmem_allsubs, data)
+}
+
+```
+
+```{r exclusions}
+excluded_ids <- c("CS_525", "CS_702", "CS_703", "CS_705", "CS_709", "CS_717", "CS_721", 
+                  "CS_735", "CS_748", "CS_774", "CS_771", "CS_772", 
+                  "CS_802", "CS_827", "CS_831", "CS_133", "CS_526", "CS_609", "CS_818", "CS_819", "CS_820") #525 and 827 has "0" as its labels for the app scoring. 133, 526, 609, 818, 819, 820 for being labeled no switch as a 3/diff 
+
+tempmem_allsubs <- tempmem_allsubs %>%
+  filter(!Subject_ID %in% excluded_ids)
+```
+
+```{r temp order memory analyses}
+#descriptives (mean, standard deviation)
+tempmem_descriptives <- aggregate(tempmem_allsubs, TemMem_resp.corr ~  App_1_BothLecture_2_BothInsta_3_diff + SwitchEvent_0_no_1_yes + Subject_ID, function(x) c(mean = mean(x), sd = sd(x)))
+  
+
+#LME: effects of switch category and event continuity 
+tempmem_lme <- lmer(data = tempmem_allsubs, TemMem_resp.corr ~ SwitchEvent_0_no_1_yes * App_1_BothLecture_2_BothInsta_3_diff + (1 | Subject_ID))
+summary(tempmem_lme)
+anova(tempmem_lme)
+
+#estimated marginal means 
+emmeans <- emmeans(tempmem_lme, ~SwitchEvent_0_no_1_yes * App_1_BothLecture_2_BothInsta_3_diff)
+pairs(emmeans, by = "SwitchEvent_0_no_1_yes")
+
+```
+```{r subj time analyses}
+#create a subj time bin 
+tempmem_allsubs$time_bin = ifelse(tempmem_allsubs$TimePer_resp.keys %in% c(1, 2), 0, 1) # 0 = short, 1 = long
+
+#GLME: switch + event continuity +interaction
+subj_glmer <- glmer(data = tempmem_allsubs, family = binomial, time_bin ~ SwitchEvent_0_no_1_yes * App_1_BothLecture_2_BothInsta_3_diff + (1 | Subject_ID))
+
+summary(subj_glmer)
+anova(subj_glmer)
+
+#estimated marginal means 
+emmeans_subj <- emmeans(subj_glmer, ~SwitchEvent_0_no_1_yes * App_1_BothLecture_2_BothInsta_3_diff, type = "response")
+
+#effects of event continuity by switch 
+pairs(emmeans_subj, by = "SwitchEvent_0_no_1_yes")
+
+#effects of switch by event continuity
+pairs(emmeans_subj, by = "App_1_BothLecture_2_BothInsta_3_diff")
+
+```
+
+```{r temp order plots}
+#bar plot
+ggplot(tempmem_descriptives, aes(x = as.factor(SwitchEvent_0_no_1_yes), y = TemMem_resp.corr, fill = as.factor(App_1_BothLecture_2_BothInsta_3_diff))) +
+  geom_bar(stat = "summary", position = "dodge") +
+  #geom_jitter(width = 0.08, alpha = 0.4, color = "black") +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", position = position_dodge(0.9), width = 0.2) +
+  geom_hline(yintercept = 0.5, color = "red", linetype = "dashed", size = 0.3) +
+  scale_fill_manual(values = c("blue", "lightgreen","mediumorchid")) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(color = "black"))
+
+```
+
+
