@@ -52,7 +52,7 @@ for(i in 1:length(csv_path)){
 ```
 
 ```{r exclusions}
-#excluded_ids <- c("CS_fmri_004", "CS_fmri_059", "CS_fmri_096") 
+excluded_ids <- c("CS_fmri_004", "CS_fmri_059", "CS_fmri_096") 
 
 tempmem_allsubs <- tempmem_allsubs %>%
   filter(!Subject_ID %in% excluded_ids)
