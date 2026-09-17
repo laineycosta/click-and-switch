@@ -21,7 +21,7 @@ library(pbkrtest)
 
 ```{r data path}
 #find data path 
-file_path <- file.path('../../experiments/click-and-switch/data/scored_behavioral_data')
+file_path <- file.path('../../experiments/click-and-switch/data/scored_fmri_data')
 
 ##only run this once, converts excels to csvs 
 #files_excel <- list.files(path = file_path, pattern = "xlsx", full.names = T)
@@ -52,9 +52,7 @@ for(i in 1:length(csv_path)){
 ```
 
 ```{r exclusions}
-excluded_ids <- c("CS_702", "CS_703", "CS_705", "CS_709", "CS_717", "CS_721", 
-                  "CS_735", "CS_748", "CS_774", "CS_771", "CS_772", 
-                  "CS_802", "CS_831") 
+#excluded_ids <- c("CS_fmri_004", "CS_fmri_059", "CS_fmri_096") 
 
 tempmem_allsubs <- tempmem_allsubs %>%
   filter(!Subject_ID %in% excluded_ids)
@@ -80,10 +78,9 @@ summary(tempmem_lme)
 anova(tempmem_lme)
 
 #estimated marginal means 
-emmeans <- emmeans(tempmem_lme, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes, pbkrtest.limit = 5000)
+emmeans <- emmeans(tempmem_lme, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes, pbkrtest.limit = 6000)
 pairs(emmeans, by = "SwitchEvent_0_no_1_yes")
 
-write.csv(tempmem_allsubs, file = "LME_check.csv")
 ```
 
 ```{r subj time analyses}
@@ -115,7 +112,7 @@ ggplot(tempmem_descriptives, aes(x = as.factor(SwitchEvent_0_no_1_yes), y = TemM
   #geom_jitter(width = 0.08, alpha = 0.4, color = "black") +
   stat_summary(fun.data = mean_cl_normal, geom = "errorbar", position = position_dodge(0.6), width = 0.2) +
   geom_hline(yintercept = 0.5, color = "red", linetype = "dashed", size = 0.3) +
-  scale_fill_manual(values = c("blue", "lightgreen","mediumorchid"), name = "Condition", labels = c("Lecture-Lecture", "TikTok-TikTok", "Lecture-TikTok")) +
+  scale_fill_manual(values = c("blue", "lightgreen","mediumorchid"), name = "Condition", labels = c("Lecture-Lecture", "Insta-Insta", "Lecture-Insta")) +
   xlab("Switch Condition") +
   ylab("Temporal Memory Accuracy") +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
@@ -135,8 +132,8 @@ ggplot(subj_prop, aes(x = as.factor(c(App_1_BothLecture_2_BothInsta_3_diff)), y 
   geom_bar(stat = "identity", position = "stack") +
   facet_grid(SwitchEvent_0_no_1_yes ~ App_1_BothLecture_2_BothInsta_3_diff, labeller = labeller(App_1_BothLecture_2_BothInsta_3_diff = c(
     "1" = "Lecture-Lecture",
-    "2" = "TikTok-TikTok",
-    "3" = "Lecture-TikTok"), 
+    "2" = "Insta-Insta",
+    "3" = "Different"), 
     SwitchEvent_0_no_1_yes = c(
       "0" = "Same Event",
       "1" = "Different Events"
