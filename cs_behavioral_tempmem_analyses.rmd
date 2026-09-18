@@ -12,10 +12,12 @@ library(stringr)
 library(dplyr)
 library(tidyr)
 library(lme4)
+library(lmerTest)
 library(effsize)
 library(emmeans)
 library(ggplot2)
 library(pbkrtest)
+library(car)
 ```
 
 
@@ -52,9 +54,9 @@ for(i in 1:length(csv_path)){
 ```
 
 ```{r exclusions}
-excluded_ids <- c("CS_102", "CS_105", "CS_106", "CS_107", "CS_109", "CS_110", "CS_115", "CS_118", "CS_119", "CS_126", "CS_135", "CS_138", "CS_207", "CS_215", "CS_216", "CS_217", "CS_223", "CS_702", "CS_703", "CS_705", "CS_709", "CS_717", "CS_721", 
-                  "CS_735", "CS_748", "CS_774", "CS_771", "CS_772", 
-                  "CS_802", "CS_831") 
+excluded_ids <- c("CS_102", "CS_105", "CS_106", "CS_107", "CS_109", "CS_110", "CS_115", "CS_118", "CS_119", "CS_126", 
+                  "CS_135", "CS_138", "CS_207", "CS_215", "CS_216", "CS_217", "CS_223", "CS_702", "CS_703", "CS_705", 
+                  "CS_709", "CS_802", "CS_831") 
 
 tempmem_allsubs <- tempmem_allsubs %>%
   filter(!Subject_ID %in% excluded_ids)
@@ -80,7 +82,7 @@ summary(tempmem_lme)
 anova(tempmem_lme)
 
 #estimated marginal means 
-emmeans <- emmeans(tempmem_lme, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes, pbkrtest.limit = 9982)
+emmeans <- emmeans(tempmem_lme, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes, pbkrtest.limit = 10189)
 pairs(emmeans, by = "SwitchEvent_0_no_1_yes")
 
 ```
@@ -93,7 +95,7 @@ tempmem_allsubs$time_bin = ifelse(tempmem_allsubs$TimePer_resp.keys %in% c(1, 2)
 subj_glmer <- glmer(data = tempmem_allsubs, family = binomial, time_bin ~ App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes + (1 | Subject_ID))
 
 summary(subj_glmer)
-anova(subj_glmer)
+car::Anova(subj_glmer, test = "Chisq")
 
 #estimated marginal means 
 emmeans_subj <- emmeans(subj_glmer, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes, type = "response")

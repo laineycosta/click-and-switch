@@ -91,7 +91,7 @@ tempmem_allsubs$time_bin = ifelse(tempmem_allsubs$TimePer_resp.keys %in% c(1, 2)
 subj_glmer <- glmer(data = tempmem_allsubs, family = binomial, time_bin ~ App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes + (1 | Subject_ID))
 
 summary(subj_glmer)
-anova(subj_glmer)
+car::Anova(subj_glmer, test = "Chisq")
 
 #estimated marginal means 
 emmeans_subj <- emmeans(subj_glmer, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes, type = "response")
