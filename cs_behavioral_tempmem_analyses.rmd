@@ -41,9 +41,9 @@ for(i in 1:length(csv_path)){
   data <- read.csv(csv_path[i])
   
   data <- data %>%
-    select(Subject_ID, Video,Filter_0_instruction_1_task, App_1_BothLecture_2_BothInsta_3_diff,
+    select(Subject_ID,Filter_0_instruction_1_task, App_1_BothLecture_2_BothInsta_3_diff,
            SameFrame_0_no_1_yes, SwitchEvent_0_no_1_yes, Exclude_0_no_1_yes, 
-           left_event_frame, right_event_frame, 
+           left_event_frame, right_event_frame,
            correct_answer, TemMem_resp.keys, TemMem_resp.corr,
            TemMem_resp.rt, TimePer_resp.keys, TimePer_resp.rt
            )
@@ -58,12 +58,19 @@ excluded_ids <- c("CS_102", "CS_105", "CS_106", "CS_107", "CS_109", "CS_110", "C
                   "CS_135", "CS_138", "CS_207", "CS_215", "CS_216", "CS_217", "CS_223", "CS_702", "CS_703", "CS_705", 
                   "CS_709", "CS_802", "CS_831") 
 
+
+#excluded_ids <- c("CS_702", "CS_703", "CS_705", "CS_709", "CS_717", "CS_721", "CS_735", "CS_748", "CS_774", "CS_771", #"CS_772", "CS_802", "CS_831")
+
 tempmem_allsubs <- tempmem_allsubs %>%
   filter(!Subject_ID %in% excluded_ids)
 
 #now remove all bad trials
 tempmem_allsubs <- tempmem_allsubs %>%
   filter(Filter_0_instruction_1_task == 1 & Exclude_0_no_1_yes == 0 & App_1_BothLecture_2_BothInsta_3_diff != 0)
+
+#to be used for deepucontrol
+write.csv(tempmem_allsubs, paste0("/Users/laineycosta/workspace/click-and-switch/c+s_beh_tempmem.csv"))
+
 ```
 
 ```{r temp order memory analyses}
@@ -72,7 +79,7 @@ tempmem_allsubs$App_1_BothLecture_2_BothInsta_3_diff <- as.factor(tempmem_allsub
 
 
 #descriptives (mean, standard deviation)
-tempmem_descriptives <- aggregate(tempmem_allsubs, TemMem_resp.corr ~  App_1_BothLecture_2_BothInsta_3_diff + SwitchEvent_0_no_1_yes + Subject_ID, function(x) c(mean = mean(x), sd = sd(x)))
+tempmem_descriptives <- aggregate(tempmem_allsubs, TemMem_resp.corr ~  App_1_BothLecture_2_BothInsta_3_diff + SwitchEvent_0_no_1_yes + `Subject_ID`, function(x) c(mean = mean(x), sd = sd(x)))
   
 
 #LME: effects of switch category and event continuity 
@@ -85,6 +92,8 @@ anova(tempmem_lme)
 emmeans <- emmeans(tempmem_lme, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes, pbkrtest.limit = 10189)
 pairs(emmeans, by = "SwitchEvent_0_no_1_yes")
 
+tempmem <- tempmem_descriptives %>%
+  pivot_wider(values_from = TemMem_resp.corr, names_from = c(App_1_BothLecture_2_BothInsta_3_diff, SwitchEvent_0_no_1_yes))
 ```
 
 ```{r subj time analyses}
@@ -147,6 +156,20 @@ ggplot(subj_prop, aes(x = as.factor(c(App_1_BothLecture_2_BothInsta_3_diff)), y 
   xlab("Switch Condition") +
   scale_x_discrete(labels = NULL) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(color = "black"))
+
+#bar plots
+#x axis: same/diff event, y axis is proportion response, fill is the switch type 
+barplot_subj <- aggregate(TimePer_resp.keys ~ App_1_BothLecture_2_BothInsta_3_diff + SwitchEvent_0_no_1_yes + Subject_ID, data = tempmem_allsubs, mean)
+barplot_subj$prop <- barplot_subj$TimePer_resp.keys/4
+
+ggplot(barplot_subj, aes(x = as.factor(SwitchEvent_0_no_1_yes), y = prop, fill = as.factor(App_1_BothLecture_2_BothInsta_3_diff))) +
+  geom_bar(stat = "summary", width = 0.6, position = "dodge") +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", position = position_dodge(0.6), width = 0.2) +
+  scale_fill_manual(values = c("lightpink", "darkgreen", "lightblue"), name = "Switch Type", labels = c("lecture-lecture", "tiktok-tiktok", "lecture-tiktok")) +
+  xlab("Switch Condition") +
+  ylab("Proportion Subjective Distance Ratings") +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(color = "black"))
 
 
