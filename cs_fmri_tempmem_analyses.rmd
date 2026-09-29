@@ -145,6 +145,19 @@ ggplot(subj_prop, aes(x = as.factor(c(App_1_BothLecture_2_BothInsta_3_diff)), y 
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(color = "black"))
 
+#bar plots
+#x axis: same/diff event, y axis is proportion response, fill is the switch type 
+barplot_subj <- aggregate(TimePer_resp.keys ~ App_1_BothLecture_2_BothInsta_3_diff + SwitchEvent_0_no_1_yes + Subject_ID, data = tempmem_allsubs, mean)
+barplot_subj$prop <- barplot_subj$TimePer_resp.keys/4
+
+ggplot(barplot_subj, aes(x = as.factor(SwitchEvent_0_no_1_yes), y = prop, fill = as.factor(App_1_BothLecture_2_BothInsta_3_diff))) +
+  geom_bar(stat = "summary", width = 0.6, position = "dodge") +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", position = position_dodge(0.6), width = 0.2) +
+  scale_fill_manual(values = c("lightpink", "darkgreen", "lightblue"), name = "Switch Type", labels = c("lecture-lecture", "tiktok-tiktok", "lecture-tiktok")) +
+  xlab("Switch Condition") +
+  ylab("Proportion Subjective Distance Ratings") +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(color = "black"))
 
 ```
 
