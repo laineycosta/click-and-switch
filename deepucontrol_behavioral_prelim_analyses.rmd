@@ -16,6 +16,8 @@ library(lmerTest)
 library(effsize)
 library(emmeans)
 library(ggplot2)
+library(ggpattern)
+library(car)
 ```
 
 
@@ -62,6 +64,8 @@ cs_og_allsubs <- cs_og_allsubs %>%
   distinct(Subject_ID, left_event_frame, right_event_frame, .keep_all =T) %>%
   na.omit()
 
+cs_og_allsubs$participant <- cs_og_allsubs$Subject_ID
+
 ```
 
 ```{r}
@@ -72,51 +76,133 @@ cs_og_allsubs$TemMem_resp.rt <- as.numeric(cs_og_allsubs$TemMem_resp.rt)
 
 names(dc_control_allsubs)[names(dc_control_allsubs) == 'video_name'] <- 'Subject_ID'
 
+cs_og_allsubs$version <- "OG"
+
 #first, left join the app switch and event switch with the appropriate matches in the deepu control (join by in the order the columns present themselves)
 dc_join <- left_join(dc_control_allsubs, select(cs_og_allsubs, left_event_frame, right_event_frame, Subject_ID, App_1_BothLecture_2_BothInsta_3_diff, SwitchEvent_0_no_1_yes, Exclude_0_no_1_yes), by = join_by(left_event_frame, right_event_frame, Subject_ID))
 
-dc_cs_combined <- full_join(cs_og_allsubs, dc_join, join = join_by(left_event_frame, right_event_frame, Subject_ID))
+dc_join$version <- "control"
 
 #now join the control and the OG 
+dc_join$participant <- as.character(dc_join$participant)
 full_combined <- full_join(dc_join, cs_og_allsubs)
 
-#label OG and control 
-full_combined$version <- ifelse(is.na(full_combined$participant), "OG", "control")
 ```
 
 ```{r exclusions}
 #excluded_ids <- c("CS_702", "CS_703", "CS_705", "CS_709", "CS_717", "CS_721", "CS_735", "CS_748", "CS_774", "CS_771", "CS_772", "CS_802", "CS_831")
 
-full_combined <- full_combined %>%
-  filter(!Subject_ID %in% excluded_ids)
+
+#full_combined <- full_combined %>%
+#  filter(!Subject_ID %in% excluded_ids)
 
 #now remove all bad trials
 full_combined <- full_combined %>%
   filter(Exclude_0_no_1_yes == 0 & App_1_BothLecture_2_BothInsta_3_diff != 0)
 ```
 
-#TO DO NEXT:
-#analysis: tempmem and subjmem, OG vs control 
-
-
 ```{r temp order memory analyses}
-tempmem_allsubs$App_1_BothLecture_2_BothInsta_3_diff <- as.factor(tempmem_allsubs$App_1_BothLecture_2_BothInsta_3_diff)
+full_combined$App_1_BothLecture_2_BothInsta_3_diff <- as.factor(full_combined$App_1_BothLecture_2_BothInsta_3_diff)
 #tempmem_allsubs$SwitchEvent_0_no_1_yes <- as.factor(tempmem_allsubs$SwitchEvent_0_no_1_yes)
 
 #descriptives (mean, standard deviation)
-tempmem_descriptives <- aggregate(tempmem_allsubs, TemMem_resp.corr ~  App_1_BothLecture_2_BothInsta_3_diff + SwitchEvent_0_no_1_yes + `Subject_ID`, function(x) c(mean = mean(x), sd = sd(x)))
+tempmem_descriptives <- aggregate(full_combined, TemMem_resp.corr ~  App_1_BothLecture_2_BothInsta_3_diff + SwitchEvent_0_no_1_yes + version + participant, function(x) c(mean = mean(x), sd = sd(x)))
   
 
 #LME: effects of switch category and event continuity 
-tempmem_lme <- lmer(data = tempmem_allsubs, TemMem_resp.corr ~ App_1_BothLecture_2_BothInsta_3_diff 
-                    * SwitchEvent_0_no_1_yes + (1 | Subject_ID))
+tempmem_lme <- glmer(data = full_combined, TemMem_resp.corr ~ App_1_BothLecture_2_BothInsta_3_diff 
+                    * SwitchEvent_0_no_1_yes + version + (1 | participant), family = binomial)
 summary(tempmem_lme)
+Anova(tempmem_lme)
 anova(tempmem_lme)
 
 #estimated marginal means 
-emmeans <- emmeans(tempmem_lme, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes, pbkrtest.limit = 10189)
-pairs(emmeans, by = "SwitchEvent_0_no_1_yes")
+emmeans <- emmeans(tempmem_lme, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes | version)
+emm <- emmeans(tempmem_lme, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes | version, type = "response")
 
+#pivot wider, in case want to check in Jamovi 
 tempmem <- tempmem_descriptives %>%
-  pivot_wider(values_from = TemMem_resp.corr, names_from = c(App_1_BothLecture_2_BothInsta_3_diff, SwitchEvent_0_no_1_yes))
+  pivot_wider(values_from = TemMem_resp.corr, names_from = c(App_1_BothLecture_2_BothInsta_3_diff, SwitchEvent_0_no_1_yes, version))
 ```
+
+```{r subj time analyses}
+#create a subj time bin 
+full_combined$time_bin = ifelse(full_combined$TimePer_resp.keys %in% c(1, 2), 0, 1) # 0 = short, 1 = long
+
+#GLME: switch + event continuity +interaction
+subj_glmer <- glmer(data = full_combined, family = binomial, time_bin ~ App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes + version + (1 | participant))
+
+summary(subj_glmer)
+Anova(subj_glmer, test = "Chisq")
+
+#estimated marginal means 
+emmeans_subj <- emmeans(subj_glmer, ~App_1_BothLecture_2_BothInsta_3_diff * SwitchEvent_0_no_1_yes, type = "response")
+
+#effects of app by switch 
+pairs(emmeans_subj, by = "SwitchEvent_0_no_1_yes")
+
+#effects of switch by app
+pairs(emmeans_subj, by = "App_1_BothLecture_2_BothInsta_3_diff")
+
+summary(emmeans_subj)
+```
+
+```{r temp order plots}
+#bar plot
+ggplot(tempmem_descriptives, aes(x = as.factor(SwitchEvent_0_no_1_yes), y = TemMem_resp.corr, fill = as.factor(App_1_BothLecture_2_BothInsta_3_diff), pattern = as.factor(version))) +
+  geom_bar_pattern(stat = "summary", width = 0.8, position = "dodge", pattern_color = "black", pattern_fill = "black", pattern_spacing = .02, pattern_size = .1) +
+  scale_pattern_manual(values = c('stripe', 'none', 'stripe')) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", position = position_dodge(0.8), width = 0.2) +
+  geom_hline(yintercept = 0.5, color = "red", linetype = "dashed", size = 0.3) +
+  scale_fill_manual(values = c("blue", "lightgreen","mediumorchid"), name = "Condition", labels = c("Lecture-Lecture", "Insta-Insta", "Lecture-Insta")) +
+  xlab("Switch Condition") +
+  ylab("Temporal Memory Accuracy") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(color = "black"))
+
+```
+
+```{r subj time plots}
+full_combined$TimePer_resp.keys <- as.numeric(full_combined$TimePer_resp.keys)
+
+subj_prop <- full_combined %>%
+    group_by(App_1_BothLecture_2_BothInsta_3_diff, SwitchEvent_0_no_1_yes, version, TimePer_resp.keys) %>%
+    summarise(n = n()) %>%
+    mutate(frequency = n/sum(n))
+
+#stack plot
+ggplot(subj_prop, aes(x = as.factor(c(App_1_BothLecture_2_BothInsta_3_diff)), y = frequency, fill = as.factor(TimePer_resp.keys))) +
+  geom_bar(stat = "identity", position = "stack") +
+  facet_grid(version ~ SwitchEvent_0_no_1_yes ~ App_1_BothLecture_2_BothInsta_3_diff, labeller = labeller(App_1_BothLecture_2_BothInsta_3_diff = c(
+    "1" = "Lecture-Lecture",
+    "2" = "Tiktok-Tiktok",
+    "3" = "Different"), 
+    SwitchEvent_0_no_1_yes = c(
+      "0" = "Same Event",
+      "1" = "Different Events"
+    ))) +
+  scale_fill_manual(values = c("lightpink", "deeppink","lightgreen", "darkgreen"), name = "Estimate Type", labels = c("Very short", "Short", "Long", "Very Long")) +
+  ylab("Percentage") +
+  xlab("Switch Condition") +
+  scale_x_discrete(labels = NULL) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(color = "black"))
+
+#bar plots
+#x axis: same/diff event, y axis is proportion response, fill is the switch type 
+barplot_subj <- aggregate(TimePer_resp.keys ~ App_1_BothLecture_2_BothInsta_3_diff + SwitchEvent_0_no_1_yes + version + participant, data = full_combined, mean)
+barplot_subj$prop <- barplot_subj$TimePer_resp.keys/4
+
+ggplot(barplot_subj, aes(x = as.factor(SwitchEvent_0_no_1_yes), y = prop, fill = as.factor(App_1_BothLecture_2_BothInsta_3_diff), pattern = as.factor(version))) +
+  geom_bar_pattern(stat = "summary", width = 0.6, position = "dodge", pattern_color = "black", pattern_fill = "black", pattern_spacing = .02) +
+  scale_pattern_manual(values = c('stripe', 'none', 'stripe')) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", position = position_dodge(0.6), width = 0.2) +
+  scale_fill_manual(values = c("lightpink", "darkgreen", "lightblue"), name = "Switch Type", labels = c("lecture-lecture", "tiktok-tiktok", "lecture-tiktok")) +
+  xlab("Switch Condition") +
+  ylab("Proportion Subjective Distance Ratings") +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(color = "black"))
+
+
+```
+
